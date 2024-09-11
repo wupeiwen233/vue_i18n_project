@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const { parse } = require('@vue/compiler-sfc');
 const htmlparser2 = require('htmlparser2');
 
-const sourceDir = path.join(__dirname, 'source');
-const outputDir = path.join(__dirname, 'output');
+const sourceDir = path.join(__dirname, 'source/src');
+const outputDir = path.join(__dirname, 'output/src');
 
 // 清空并准备输出目录
 if (fs.existsSync(outputDir)) {
@@ -63,7 +63,7 @@ function processAttributes(attrs) {
 
 // 解析 HTML 并处理嵌套，同时保留条件表达式和逻辑运算符
 function processTemplateContent(content) {
-    const dom = htmlparser2.parseDOM(content);
+    const dom = htmlparser2.parseDOM(content, { xmlMode: true }); // 启用 xmlMode 保持属性名的原始大小写
     const traverseDom = (nodes) => {
         let output = '';
         nodes.forEach(node => {
