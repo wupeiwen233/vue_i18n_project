@@ -58,18 +58,21 @@ function processAttributes(attrs) {
         translations.en[key] = value;
         // 如果属性前面已经有 `:`, 就不用再加 `:`
         return `${whitespace}${hasColon || ':'}${attr}="$t('${key}')"`;  
-    });
+    }).replace(/(v-slot:[^\s]+)/g, (match) => match); // 保持 v-slot 及其他自定义指令不被修改
 }
 
-// 解析 HTML 并处理嵌套，同时保留条件表达式和逻辑运算符
+// 解析 HTML 并处理嵌套，同时保留条件表达式、逻辑运算符、注释
 function processTemplateContent(content) {
-    const dom = htmlparser2.parseDOM(content, { xmlMode: true }); // 启用 xmlMode 保持属性名的原始大小写
+    const dom = htmlparser2.parseDOM(content, { xmlMode: true, recognizeSelfClosing: true, withStartIndices: true, withEndIndices: true });
     const traverseDom = (nodes) => {
         let output = '';
         nodes.forEach(node => {
             if (node.type === 'tag') {
-                // 处理标签
-                output += `<${node.name}${Object.keys(node.attribs).map(attr => ` ${attr}="${node.attribs[attr]}"`).join('')}>`;
+                // 处理标签，并确保属性不出现多余的 `=""`
+                output += `<${node.name}${Object.keys(node.attribs).map(attr => {
+                    const attrValue = node.attribs[attr];
+                    return attrValue === '' ? ` ${attr}` : ` ${attr}="${attrValue}"`;
+                }).join('')}>`;
                 output += traverseDom(node.children || []);
                 output += `</${node.name}>`;
             } else if (node.type === 'text') {
@@ -84,6 +87,9 @@ function processTemplateContent(content) {
                 } else {
                     output += node.data;
                 }
+            } else if (node.type === 'comment') {
+                // 保留注释
+                output += `<!--${node.data}-->`;
             }
         });
         return output;
@@ -117,12 +123,12 @@ if (files.length === 0) {
                 localizedTemplate = `<template>${processedContent}</template>`;
             }
 
-            // 保留 script 部分
-            const scriptPart = descriptor.script ? `<script>${descriptor.script.content}</script>` : '';
+            // 保留 script 部分，保持内容不变
+            const scriptPart = descriptor.script ? `<script${Object.keys(descriptor.script.attrs).map(attr => ` ${attr}="${descriptor.script.attrs[attr]}"`).join('')}>${descriptor.script.content}</script>` : '';
 
-            // 保留 style 部分
+            // 保留 style 部分，保持内容不变
             const stylesPart = descriptor.styles
-                ? descriptor.styles.map(style => `<style${style.scoped ? ' scoped' : ''}>${style.content}</style>`).join('\n')
+                ? descriptor.styles.map(style => `<style${Object.keys(style.attrs).map(attr => ` ${attr}="${style.attrs[attr]}"`).join('')}>${style.content}</style>`).join('\n')
                 : '';
 
             // 合并最终结果
